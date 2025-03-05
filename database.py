@@ -12,6 +12,14 @@ class Database:
         self.users = self.db["users"]
         self.admins = self.db["admins"]
         self.messages = self.db["messages"]  # New collection for message mappings
+        self.filters = self.db["filters"]  # New collection for filters
+
+        # Create indexes for faster queries
+        self.bots.create_index("bot_token")
+        self.users.create_index([("bot_token", 1), ("user_id", 1)])
+        self.admins.create_index([("bot_token", 1), ("admin_id", 1)])
+        self.messages.create_index("forwarded_message_id")
+        self.filters.create_index([("bot_token", 1), ("trigger", 1)])
 
     def add_bot(self, bot_token, owner_id):
         """Add a bot to the list of connected bots."""
@@ -50,6 +58,10 @@ class Database:
         """Get all admins for a specific bot."""
         return [admin["admin_id"] for admin in self.admins.find({"bot_token": bot_token})]
 
+    def remove_admin(self, bot_token, admin_id):
+        """Remove an admin for a specific bot."""
+        self.admins.delete_one({"bot_token": bot_token, "admin_id": admin_id})
+
     def add_message_mapping(self, original_user_id, forwarded_message_id, bot_token):
         """Store a mapping between the original user ID and the forwarded message ID."""
         self.messages.insert_one({
@@ -62,6 +74,22 @@ class Database:
         """Get the original user ID for a forwarded message."""
         message_data = self.messages.find_one({"forwarded_message_id": forwarded_message_id})
         return message_data["original_user_id"] if message_data else None
+
+    def add_filter(self, bot_token, trigger, response):
+        """Add a filter for a specific bot."""
+        self.filters.insert_one({
+            "bot_token": bot_token,
+            "trigger": trigger,
+            "response": response
+        })
+
+    def get_filters(self, bot_token):
+        """Get all filters for a specific bot."""
+        return list(self.filters.find({"bot_token": bot_token}))
+
+    def delete_filter(self, bot_token, trigger):
+        """Delete a filter for a specific bot."""
+        self.filters.delete_one({"bot_token": bot_token, "trigger": trigger})
 
 # Initialize database
 db = Database()
