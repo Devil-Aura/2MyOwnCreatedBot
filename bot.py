@@ -1,62 +1,155 @@
-# bot.py
-
-from telegram import Update
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     filters,
     ContextTypes,
+    CallbackQueryHandler,
 )
 import config
 from database import db
 from datetime import datetime
 
-# Function to send logs to the Telegram log channel
-async def log_to_channel(context: ContextTypes.DEFAULT_TYPE, message: str):
-    try:
-        await context.bot.send_message(chat_id=config.LOG_CHANNEL_ID, text=message)
-    except Exception as e:
-        print(f"Failed to send log to channel: {e}")
+# Main Menu Keyboard
+def main_menu_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("🤖 Connect Bot", callback_data="connect_bot")],
+        [InlineKeyboardButton("🏝 My Bots", callback_data="my_bots")],
+        [InlineKeyboardButton("🆘 Help", callback_data="help")],
+        [InlineKeyboardButton("🔥 Linker X Pro", callback_data="linker_pro")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-# Command: /start
+# Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to the Contact Hub Bot!")
+    await update.message.reply_photo(
+        "https://envs.sh/PVl.jpg",
+        caption=(
+            "🌟 **Welcome to Linker X Bot!** 🌟\n\n"
+            "Linker X Bot is a builder of contact bots for Telegram. Read more about it:\n"
+            "[Read Me](https://telegra.ph/What-is-Linker-X-Bot-03-05)\n\n"
+            "👇 Choose an option below:"
+        ),
+        reply_markup=main_menu_keyboard(),
+        parse_mode="Markdown"
+    )
 
-# Command: /connect <bot_token>
-async def connect_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    bot_token = context.args[0] if context.args else None
-    if not bot_token:
-        await update.message.reply_text("Usage: /connect <bot_token>")
-        return
+# Command: /addbot
+async def add_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[InlineKeyboardButton("🤖 Connect Bot", callback_data="connect_bot")]]
+    await update.message.reply_text(
+        "Click the button below to connect a new bot:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-    # Validate the bot token
-    try:
-        application = Application.builder().token(bot_token).build()
-        bot_info = await application.bot.get_me()
-        await application.stop()
-    except Exception as e:
-        await update.message.reply_text("Invalid bot token. Please check and try again.")
-        return
+# Button Click Handler
+async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    # Add the bot to the database
-    db.add_bot(bot_token, update.message.from_user.id)
-    await update.message.reply_text(f"Bot connected successfully: @{bot_info.username}")
+    if query.data == "connect_bot":
+        message = (
+            "🤖 **To connect a bot, follow these steps:**\n\n"
+            "1️⃣ Open @BotFather and create a new bot.\n"
+            "2️⃣ Copy the bot token (e.g., 12345:6789ABCDEF) and forward or paste it here.\n\n"
+            "⚠ **Warning!** Don't connect bots already used by other services."
+        )
+        keyboard = [[InlineKeyboardButton("⬅ Back", callback_data="main_menu")]]
+        await query.edit_message_text(message, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-# Command: /addadmin <bot_token> <admin_id>
-async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) < 2:
-        await update.message.reply_text("Usage: /addadmin <bot_token> <admin_id>")
-        return
+    elif query.data == "my_bots":
+        user_id = query.from_user.id
+        connected_bots = db.get_connected_bots(user_id)
+        if connected_bots:
+            keyboard = [
+                [InlineKeyboardButton(f"🔗 {bot}", callback_data=f"bot_settings_{bot}")]
+                for bot in connected_bots
+            ]
+            keyboard.append([InlineKeyboardButton("⬅ Back", callback_data="main_menu")])
+            await query.edit_message_text(
+                "🔗 **Your Connected Bots:**\n\nSelect a bot to manage its settings:",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            await query.edit_message_text(
+                "🚫 **No bots connected yet.**\nSend /addbot to connect a new one.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅ Back", callback_data="main_menu")]]),
+                parse_mode="Markdown"
+            )
 
-    bot_token, admin_id = context.args[0], context.args[1]
-    connected_bots = db.get_connected_bots(update.message.from_user.id)
-    if bot_token not in connected_bots:
-        await update.message.reply_text("You are not the owner of this bot.")
-        return
+    elif query.data == "help":
+        message = (
+            "💡 **Need Help?**\n\n"
+            "If you need assistance or want a discount on premium features, contact us:\n"
+            "📩 @Linker_Support_Bot"
+        )
+        keyboard = [[InlineKeyboardButton("⬅ Back", callback_data="main_menu")]]
+        await query.edit_message_text(message, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-    db.add_admin(bot_token, admin_id)
-    await update.message.reply_text(f"Admin added successfully for bot: {bot_token}")
+    elif query.data == "linker_pro":
+        message = (
+            "🔥 **Upgrade to Linker X Pro!**\n\n"
+            "🚀 **Pro Features:**\n"
+            "✅ No ads in your bot\n"
+            "✅ Remove copyright messages\n"
+            "✅ Custom filters & auto-replies\n"
+            "✅ More premium tools\n\n"
+            "🔓 Want to unlock premium?\n"
+            "We offer it at a low price! Contact us:\n"
+            "📩 @Linker_Support_Bot"
+        )
+        keyboard = [[InlineKeyboardButton("⬅ Back", callback_data="main_menu")]]
+        await query.edit_message_text(message, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+
+    elif query.data == "main_menu":
+        await query.edit_message_text(
+            "👇 **Choose an option below:**",
+            reply_markup=main_menu_keyboard(),
+            parse_mode="Markdown"
+        )
+
+    elif query.data.startswith("bot_settings_"):
+        bot_token = query.data.split("_")[2]
+        bot_info = await context.bot.get_me()
+        bot_name = bot_info.username
+
+        message = (
+            f"⚙️ **Settings for @{bot_name}**\n\n"
+            "Choose an option below:"
+        )
+        keyboard = [
+            [InlineKeyboardButton("1️⃣ Set Start Message", callback_data=f"set_start_{bot_token}")],
+            [InlineKeyboardButton("2️⃣ Broadcast", callback_data=f"broadcast_{bot_token}")],
+            [InlineKeyboardButton("3️⃣ Add/Remove Admin", callback_data=f"manage_admins_{bot_token}")],
+            [InlineKeyboardButton("4️⃣ Disconnect", callback_data=f"disconnect_{bot_token}")],
+            [InlineKeyboardButton("5️⃣ 🔥 Disable Watermark", callback_data="linker_pro")],
+            [InlineKeyboardButton("⬅ Back", callback_data="my_bots")]
+        ]
+        await query.edit_message_text(message, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+
+# Command: /Mybots
+async def my_bots(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    connected_bots = db.get_connected_bots(user_id)
+    if connected_bots:
+        keyboard = [
+            [InlineKeyboardButton(f"🔗 {bot}", callback_data=f"bot_settings_{bot}")]
+            for bot in connected_bots
+        ]
+        keyboard.append([InlineKeyboardButton("⬅ Back", callback_data="main_menu")])
+        await update.message.reply_text(
+            "🔗 **Your Connected Bots:**\n\nSelect a bot to manage its settings:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            "🚫 **No bots connected yet.**\nSend /addbot to connect a new one.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅ Back", callback_data="main_menu")]]),
+            parse_mode="Markdown"
+        )
 
 # Handle incoming messages
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -117,8 +210,9 @@ def main():
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("connect", connect_bot))
-    application.add_handler(CommandHandler("addadmin", add_admin))
+    application.add_handler(CommandHandler("addbot", add_bot))
+    application.add_handler(CommandHandler("mybots", my_bots))
+    application.add_handler(CallbackQueryHandler(button_click))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(MessageHandler(filters.TEXT & filters.REPLY, handle_reply))
 
