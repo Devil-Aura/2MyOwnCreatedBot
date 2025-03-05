@@ -10,6 +10,13 @@ from telegram.ext import (
 import config
 from database import db
 from datetime import datetime
+import logging
+
+# Enable logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 # Main Menu Keyboard
 def main_menu_keyboard():
@@ -23,6 +30,7 @@ def main_menu_keyboard():
 
 # Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"User {update.message.from_user.id} started the bot.")
     await update.message.reply_photo(
         "https://envs.sh/PVl.jpg",
         caption=(
@@ -37,6 +45,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Command: /addbot
 async def add_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"User {update.message.from_user.id} used /addbot.")
     keyboard = [[InlineKeyboardButton("🤖 Connect Bot", callback_data="connect_bot")]]
     await update.message.reply_text(
         "Click the button below to connect a new bot:",
@@ -47,6 +56,7 @@ async def add_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    logger.info(f"User {query.from_user.id} clicked button: {query.data}")
 
     if query.data == "connect_bot":
         message = (
@@ -131,6 +141,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Command: /Mybots
 async def my_bots(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"User {update.message.from_user.id} used /Mybots.")
     user_id = update.message.from_user.id
     connected_bots = db.get_connected_bots(user_id)
     if connected_bots:
@@ -181,7 +192,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             db.add_message_mapping(user_id, forwarded_message.message_id, bot_token)
         except Exception as e:
-            print(f"Failed to send message to recipient {recipient}: {e}")
+            logger.error(f"Failed to send message to recipient {recipient}: {e}")
 
     await update.message.reply_text("Your message has been forwarded to the bot owner and admins.")
 
@@ -202,7 +213,7 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"Reply from bot owner/admin:\n\n{update.message.text}"
         )
     except Exception as e:
-        print(f"Failed to send reply to user {original_user_id}: {e}")
+        logger.error(f"Failed to send reply to user {original_user_id}: {e}")
 
 def main():
     # Create the Application
@@ -217,6 +228,7 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & filters.REPLY, handle_reply))
 
     # Start the bot
+    logger.info("Bot started polling...")
     application.run_polling()
 
 if __name__ == "__main__":
